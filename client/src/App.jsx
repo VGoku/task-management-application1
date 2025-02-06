@@ -5,6 +5,7 @@ import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import TaskDetails from './pages/TaskDetails'
 import Layout from './components/Layout'
+import AuthCallback from './pages/AuthCallback'
 
 // Protected Route wrapper
 function ProtectedRoute({ children }) {
@@ -23,12 +24,13 @@ function ProtectedRoute({ children }) {
 
 function App() {
   return (
-    <Router>
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
           
           {/* Protected routes */}
           <Route path="/" element={
