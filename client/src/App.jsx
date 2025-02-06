@@ -11,18 +11,24 @@ import AuthCallback from './pages/AuthCallback'
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
   
+  console.log('ProtectedRoute: Current state:', { user, loading }) // Debug log
+  
   if (loading) {
+    console.log('ProtectedRoute: Loading...') // Debug log
     return <div>Loading...</div>
   }
   
   if (!user) {
+    console.log('ProtectedRoute: No user, redirecting to login') // Debug log
     return <Navigate to="/login" />
   }
   
+  console.log('ProtectedRoute: Rendering protected content') // Debug log
   return children
 }
 
 function App() {
+  console.log('App: Rendering') // Debug log
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
