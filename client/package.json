@@ -10,13 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@headlessui/react": "^1.7.18",
-    "@heroicons/react": "^2.1.1",
-    "@supabase/supabase-js": "^2.39.3",
+    "@headlessui/react": "^1.7.19",
+    "@heroicons/react": "^2.2.0",
+    "@supabase/supabase-js": "^2.48.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.22.0",
-    "react-hot-toast": "^2.4.1"
+    "react-hot-toast": "^2.5.1",
+    "react-router-dom": "^6.29.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",
@@ -31,4 +31,4 @@
     "tailwindcss": "^3.4.1",
     "vite": "^5.0.8"
   }
-} 
+}
