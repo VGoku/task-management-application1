@@ -95,44 +95,57 @@ export const deleteTask = async (taskId) => {
 
 export const getTasks = async (filters = {}) => {
   try {
-    console.log('Fetching tasks with filters:', filters)
+    console.log('getTasks called with filters:', filters)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('User must be authenticated to fetch tasks')
+    
+    if (!user) {
+      console.error('No authenticated user found')
+      throw new Error('User must be authenticated to fetch tasks')
+    }
+    
     console.log('Current user:', user)
 
+    // First, let's try a simple query without joins to verify basic access
+    const { data: tasksCheck, error: accessError } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('user_id', user.id)
+      .limit(1)
+
+    if (accessError) {
+      console.error('Access check failed:', accessError)
+      return { error: accessError }
+    }
+
+    console.log('Access check passed, proceeding with full query')
+
+    // Now proceed with the full query
     let query = supabase
       .from('tasks')
-      .select(`
-        *,
-        category:categories(
-          id,
-          name,
-          color
-        )
-      `)
+      .select('*')
       .eq('user_id', user.id)
+    
+    console.log('Building query with filters...')
     
     // Apply filters
     if (filters.status) {
+      console.log('Applying status filter:', filters.status)
       query = query.eq('status', filters.status)
     }
     
     if (filters.priority) {
+      console.log('Applying priority filter:', filters.priority)
       query = query.eq('priority', filters.priority)
-    }
-
-    if (filters.category) {
-      query = query.eq('category_id', filters.category)
     }
     
     // Apply sorting
     if (filters.sortBy) {
       const { column, ascending } = filters.sortBy
+      console.log('Applying sort:', { column, ascending })
       query = query.order(column, { ascending })
     } else {
-      // Default sorting by position and created_at
-      query = query.order('position', { ascending: true })
-        .order('created_at', { ascending: false })
+      console.log('Applying default sort')
+      query = query.order('created_at', { ascending: false })
     }
 
     console.log('Executing tasks query...')
@@ -143,46 +156,10 @@ export const getTasks = async (filters = {}) => {
       return { error: tasksError }
     }
 
-    console.log('Tasks fetched successfully:', tasks)
+    console.log('Tasks fetched successfully:', tasks?.length || 0, 'tasks')
+    console.log('Raw tasks data:', tasks)
 
-    // Fetch tags for all tasks in a single query
-    if (tasks && tasks.length > 0) {
-      console.log('Fetching tags for tasks...')
-      const { data: tagData, error: tagError } = await supabase
-        .from('task_tags')
-        .select(`
-          task_id,
-          tag:tags(
-            id,
-            name,
-            color
-          )
-        `)
-        .in('task_id', tasks.map(t => t.id))
-
-      if (tagError) {
-        console.error('Error fetching tags:', tagError)
-        return { error: tagError }
-      }
-
-      console.log('Tags fetched successfully:', tagData)
-
-      // Group tags by task_id
-      const tagsByTask = tagData.reduce((acc, { task_id, tag }) => {
-        if (!acc[task_id]) acc[task_id] = []
-        if (tag) acc[task_id].push(tag)
-        return acc
-      }, {})
-
-      // Add tags to each task
-      const tasksWithTags = tasks.map(task => ({
-        ...task,
-        tags: tagsByTask[task.id] || []
-      }))
-
-      return { data: tasksWithTags, error: null }
-    }
-
+    // For now, return tasks without categories or tags to simplify debugging
     return { data: tasks || [], error: null }
   } catch (error) {
     console.error('Unexpected error in getTasks:', error)
@@ -191,37 +168,56 @@ export const getTasks = async (filters = {}) => {
 }
 
 export const getTaskById = async (taskId) => {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('User must be authenticated to fetch tasks')
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User must be authenticated to fetch tasks')
 
-  const { data: task, error: taskError } = await supabase
-    .from('tasks')
-    .select(`
-      *,
-      category:categories(id, name, color)
-    `)
-    .eq('id', taskId)
-    .eq('user_id', user.id)
-    .single()
+    const { data: task, error: taskError } = await supabase
+      .from('tasks')
+      .select(`
+        *,
+        category:categories!category_id (
+          id,
+          name,
+          color
+        )
+      `)
+      .eq('id', taskId)
+      .eq('user_id', user.id)
+      .single()
 
-  if (taskError) return { error: taskError }
+    if (taskError) {
+      console.error('Error fetching task:', taskError)
+      return { error: taskError }
+    }
 
-  // Fetch tags for the task
-  const { data: tagData, error: tagError } = await supabase
-    .from('task_tags')
-    .select(`
-      tag:tags(id, name, color)
-    `)
-    .eq('task_id', taskId)
+    // Fetch tags for the task
+    const { data: tagData, error: tagError } = await supabase
+      .from('task_tags')
+      .select(`
+        tag:tags!tag_id (
+          id,
+          name,
+          color
+        )
+      `)
+      .eq('task_id', taskId)
 
-  if (tagError) return { error: tagError }
+    if (tagError) {
+      console.error('Error fetching task tags:', tagError)
+      return { error: tagError }
+    }
 
-  return {
-    data: {
-      ...task,
-      tags: tagData.map(t => t.tag).filter(Boolean)
-    },
-    error: null
+    return {
+      data: {
+        ...task,
+        tags: tagData.map(t => t.tag).filter(Boolean)
+      },
+      error: null
+    }
+  } catch (error) {
+    console.error('Unexpected error in getTaskById:', error)
+    return { data: null, error }
   }
 }
 

@@ -66,6 +66,7 @@ const TaskCard = ({ task, index }) => {
 }
 
 const Column = ({ column, tasks }) => {
+  console.log(`Rendering column ${column.title} with ${tasks.length} tasks:`, tasks)
   return (
     <div className="w-80 bg-gray-50 rounded-lg p-4">
       <h2 className="text-lg font-medium text-gray-900 mb-4">
@@ -101,6 +102,7 @@ export default function TaskBoard() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    console.log('TaskBoard mounted, user:', user)
     if (user) {
       loadTasks()
     }
@@ -111,16 +113,28 @@ export default function TaskBoard() {
       setLoading(true)
       setError(null)
       console.log('Loading tasks for user:', user?.id)
+      console.log('User profile:', { isAdmin: user?.isAdmin })
       
       const { data, error } = await getTasks()
-      if (error) throw error
+      
+      if (error) {
+        console.error('Error in loadTasks:', error)
+        throw error
+      }
 
-      console.log('Tasks loaded:', data)
+      console.log('Tasks loaded successfully:', data)
       setTasks(data || [])
+      
+      // Log the tasks for each column
+      COLUMNS.forEach(column => {
+        const columnTasks = data?.filter(task => task.status === column.status) || []
+        console.log(`${column.title} tasks:`, columnTasks)
+      })
+      
     } catch (error) {
       console.error('Error loading tasks:', error)
       setError(error.message)
-      toast.error('Failed to load tasks')
+      toast.error(`Failed to load tasks: ${error.message}`)
     } finally {
       setLoading(false)
     }
@@ -128,21 +142,24 @@ export default function TaskBoard() {
 
   const handleDragEnd = async (result) => {
     const { destination, source, draggableId } = result
+    console.log('Drag end:', { destination, source, draggableId })
 
-    // Dropped outside a valid droppable
-    if (!destination) return
+    if (!destination) {
+      console.log('No valid destination')
+      return
+    }
 
-    // Dropped in the same position
     if (
       destination.droppableId === source.droppableId &&
       destination.index === source.index
     ) {
+      console.log('Dropped in same position')
       return
     }
 
     try {
-      // Get the new status based on the destination column
       const newStatus = COLUMNS.find(col => col.id === destination.droppableId)?.status
+      console.log('Moving task to new status:', newStatus)
 
       // Optimistically update the UI
       const newTasks = Array.from(tasks)
@@ -158,16 +175,21 @@ export default function TaskBoard() {
         newStatus
       )
 
-      if (error) throw error
+      if (error) {
+        console.error('Error reordering task:', error)
+        throw error
+      }
+
+      console.log('Task reordered successfully')
     } catch (error) {
-      console.error('Error reordering task:', error)
+      console.error('Error in handleDragEnd:', error)
       toast.error('Failed to reorder task')
-      // Reload tasks to reset to server state
-      loadTasks()
+      loadTasks() // Reload tasks to reset to server state
     }
   }
 
   if (loading) {
+    console.log('TaskBoard is loading...')
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-pulse text-gray-500">
@@ -178,9 +200,10 @@ export default function TaskBoard() {
   }
 
   if (error) {
+    console.log('TaskBoard has error:', error)
     return (
       <div className="flex flex-col items-center justify-center h-64">
-        <div className="text-red-500 mb-4">{error}</div>
+        <div className="text-red-500 mb-4">Error: {error}</div>
         <button
           onClick={loadTasks}
           className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -192,8 +215,12 @@ export default function TaskBoard() {
   }
 
   const getColumnTasks = (status) => {
-    return tasks.filter(task => task.status === status)
+    const columnTasks = tasks.filter(task => task.status === status)
+    console.log(`Getting tasks for ${status}:`, columnTasks)
+    return columnTasks
   }
+
+  console.log('TaskBoard rendering with tasks:', tasks)
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { supabase, getCurrentUser } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext({})
 
@@ -11,37 +11,39 @@ export function AuthProvider({ children }) {
 
   const fetchUserRole = async (userId) => {
     try {
-      console.log('Fetching user role for ID:', userId)
+      console.log('Fetching user profile for ID:', userId)
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('role')
+        .select('is_admin')
         .eq('id', userId)
         .single()
 
       if (error) {
-        console.error('Error fetching user role:', error)
-        // Create profile if it doesn't exist
+        console.error('Error fetching user profile:', error)
+        // If profile doesn't exist, create it
         if (error.code === 'PGRST116') {
+          console.log('Creating new user profile...')
           const { data: newProfile, error: createError } = await supabase
             .from('user_profiles')
-            .insert({ id: userId, role: 'user' })
-            .select('role')
+            .insert([{ id: userId, is_admin: false }])
+            .select('is_admin')
             .single()
 
           if (createError) {
             console.error('Error creating user profile:', createError)
-            return 'user'
+            return false
           }
-          return newProfile.role
+          console.log('New profile created:', newProfile)
+          return newProfile?.is_admin || false
         }
-        return 'user'
+        return false
       }
 
-      console.log('Fetched user role:', data)
-      return data?.role || 'user'
+      console.log('Fetched user profile:', data)
+      return data?.is_admin || false
     } catch (error) {
-      console.error('Exception fetching user role:', error)
-      return 'user'
+      console.error('Exception in fetchUserRole:', error)
+      return false
     }
   }
 
@@ -51,17 +53,19 @@ export function AuthProvider({ children }) {
 
     const initializeAuth = async () => {
       try {
-        // Get current session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-        console.log('Initial session:', session, sessionError)
+        console.log('Initial session:', session?.user?.id)
 
-        if (sessionError) throw sessionError
+        if (sessionError) {
+          console.error('Session error:', sessionError)
+          return
+        }
 
         if (session?.user) {
-          const role = await fetchUserRole(session.user.id)
+          const isAdmin = await fetchUserRole(session.user.id)
           if (mounted) {
-            setUser({ ...session.user, role })
-            console.log('User initialized with role:', role)
+            setUser({ ...session.user, isAdmin })
+            console.log('User initialized with admin status:', isAdmin)
           }
         }
       } catch (error) {
@@ -75,15 +79,14 @@ export function AuthProvider({ children }) {
 
     initializeAuth()
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session)
+      console.log('Auth state changed:', event, session?.user?.id)
 
       if (session?.user) {
-        const role = await fetchUserRole(session.user.id)
+        const isAdmin = await fetchUserRole(session.user.id)
         if (mounted) {
-          setUser({ ...session.user, role })
-          console.log('User updated with role:', role)
+          setUser({ ...session.user, isAdmin })
+          console.log('User updated with admin status:', isAdmin)
         }
       } else {
         if (mounted) {
@@ -104,8 +107,8 @@ export function AuthProvider({ children }) {
   }, [])
 
   const isAdmin = () => {
-    console.log('Checking admin status:', user)
-    return user?.role === 'admin'
+    console.log('Checking admin status:', user?.isAdmin)
+    return user?.isAdmin || false
   }
 
   const value = {
@@ -113,8 +116,6 @@ export function AuthProvider({ children }) {
     loading,
     isAdmin
   }
-
-  console.log('AuthProvider: Current state:', { user, loading })
 
   return (
     <AuthContext.Provider value={value}>
